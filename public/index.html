@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+  <meta name="viewport" content="initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, target-densitydpi=device-dpi" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  <meta name="HandheldFriendly" content="true" />
+  <title>Five Night's At 9A - Developer: dextomoser</title>
+
+  <style>
+    html, body { margin: 0; padding: 0; background: #000; }
+    body { text-align: center; color: #ddd; font-family: "Courier New", Courier, monospace; }
+    #bloctxt { border-left: 5px solid #f00; padding-left: 10px; position: absolute; left: 50%; width: 600px; margin-left: -260px; }
+    #bloctxt h1 { color: #f00; font-size: x-large; }
+
+    /* ---------- Eşleşme (QR) ekranı ---------- */
+    #pairing {
+      position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at center, rgba(25,3,3,.93) 0%, rgba(0,0,0,.98) 75%);
+      transition: opacity .6s ease, visibility .6s ease;
+    }
+    #pairing.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+    #pairing::after { /* tarama çizgileri */
+      content: ""; position: absolute; inset: 0; pointer-events: none;
+      background: repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 3px);
+    }
+    .card { position: relative; z-index: 1; text-align: center; padding: 28px 44px 24px; max-width: 92vw;
+      border: 1px solid #5a0909; background: rgba(8,8,8,.85); box-shadow: 0 0 60px rgba(160,0,0,.35), inset 0 0 40px rgba(0,0,0,.9); }
+    .game-title { margin: 0; font-size: clamp(30px, 5.2vw, 64px); letter-spacing: .06em; color: #e11616;
+      text-shadow: 0 0 14px rgba(255,0,0,.65), 0 0 40px rgba(130,0,0,.8); animation: flick 5s infinite; }
+    .dev { margin: 6px 0 18px; font-size: clamp(14px, 1.8vw, 22px); color: #9a9a9a; letter-spacing: .2em; text-transform: uppercase; }
+    .dev b { color: #d8d8d8; }
+    #qrbox { display: inline-block; background: #fff; padding: 14px; border: 3px solid #7a0a0a; box-shadow: 0 0 30px rgba(200,0,0,.45); min-width: 260px; min-height: 260px; }
+    #qrbox img, #qrbox canvas { display: block; }
+    #qrfallback { color: #111; max-width: 260px; word-break: break-all; font-size: 13px; padding: 20px 0; }
+    #waiting { margin-top: 18px; font-size: clamp(18px, 2.4vw, 30px); color: #ff3b3b; letter-spacing: .12em; animation: pulse 1.6s ease-in-out infinite; }
+    #waiting.ok { color: #46d36a; animation: none; }
+    #codeline { margin-top: 10px; color: #8a8a8a; font-size: 14px; }
+    #codeline b { color: #ddd; letter-spacing: .25em; }
+    #urltext { margin-top: 4px; color: #5d5d5d; font-size: 12px; word-break: break-all; }
+    #skipbtn { margin-top: 16px; background: transparent; color: #777; border: 1px solid #333; padding: 8px 16px;
+      font-family: inherit; cursor: pointer; letter-spacing: .1em; }
+    #skipbtn:hover { color: #ccc; border-color: #777; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+    @keyframes flick { 0%,92%,100% { opacity: 1; } 93% { opacity: .55; } 94% { opacity: 1; } 96% { opacity: .4; } 97% { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .game-title, #waiting { animation: none; } }
+
+    /* ---------- Köşe imzası ---------- */
+    #credit { position: fixed; left: 50%; transform: translateX(-50%); bottom: 10px; white-space: nowrap; z-index: 900; pointer-events: none; font-size: 12px; letter-spacing: .12em;
+      color: rgba(200,200,200,.55); text-shadow: 0 0 6px #000; text-align: left; }
+    #credit b { color: rgba(230,60,60,.85); }
+    #phoneState { position: fixed; right: 12px; top: 10px; z-index: 900; pointer-events: none; font-size: 12px; letter-spacing: .1em; padding: 4px 10px;
+      border: 1px solid #333; background: rgba(0,0,0,.6); color: #888; }
+    #phoneState.on { color: #46d36a; border-color: #1f5a2d; }
+
+    /* ---------- Bildirimler / sanal imleç ---------- */
+    #toast { position: fixed; left: 50%; top: 18px; transform: translateX(-50%); z-index: 950; pointer-events: none; opacity: 0;
+      padding: 8px 18px; background: rgba(0,0,0,.8); border: 1px solid #7a0a0a; color: #eee; font-size: 16px; letter-spacing: .1em; transition: opacity .25s; }
+    #toast.show { opacity: 1; }
+    #vcursor { position: fixed; z-index: 940; pointer-events: none; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
+      border: 2px solid #ff3b3b; background: rgba(255,0,0,.25); box-shadow: 0 0 10px #f00; opacity: 0; transition: opacity .4s; }
+    #vcursor.show { opacity: 1; }
+
+    /* ---------- Kalibrasyon (yalnızca ?debug=1) ---------- */
+    #calPanel { position: fixed; left: 8px; top: 8px; z-index: 1500; width: 270px; padding: 10px; text-align: left; font-size: 13px;
+      background: rgba(0,0,0,.88); border: 1px solid #7a0a0a; color: #ddd; }
+    #calPanel select, #calPanel button { width: 100%; margin: 3px 0; padding: 7px; background: #161616; color: #eee; border: 1px solid #444; font-family: inherit; }
+    #calPanel button:hover { border-color: #c22; }
+    #calMarkers { position: fixed; inset: 0; z-index: 920; pointer-events: none; }
+    .calDot { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: rgba(255,230,0,.8); }
+    .calLbl { position: absolute; transform: translate(8px,-6px); font-size: 11px; color: #ff0; text-shadow: 0 0 3px #000; white-space: nowrap; }
+    #calPick { position: fixed; z-index: 1400; cursor: crosshair; background: rgba(255,0,0,.12); outline: 2px dashed #f33; }
+  </style>
+
+  <script>
+    // Canvas desteklemeyen eski tarayıcılar için uyarı
+    if (!document.createElement("canvas").getContext) {
+      document.write("<p style='color:#f33'>Tarayıcınız Canvas desteklemiyor.</p>");
+    }
+  </script>
+
+  <!-- Oyun çalışma zamanı -->
+  <script src="src/Runtime.js"></script>
+
+  <script>
+    // Dosya sistemi (file://) üzerinden açılırsa çalışmaz; sunucu gerekir.
+    if (window.location.protocol == "file:") {
+      document.write('<div id="bloctxt">');
+      document.write('<h1>Uygulama bu şekilde çalıştırılamaz...</h1>');
+      document.write('<p>Tarayıcılar dosyaları doğrudan dosya sisteminden açmaya izin vermez.<br>');
+      document.write('Lütfen <code>npm install &amp;&amp; npm start</code> ile sunucuyu başlatıp http://localhost:3000 adresini açın.</p>');
+      document.write('</div>');
+      throw new Error("Cannot run application from file://");
+    }
+  </script>
+</head>
+
+<body>
+
+<div style="display: inline-block; -webkit-user-select: none; text-align: left;">
+  <canvas id="MMFCanvas" width="1280" height="720">
+    Tarayıcınız Canvas desteklemiyor.
+  </canvas>
+</div>
+
+<!-- ===================== Five Night's At 9A: QR / Eşleşme Ekranı ===================== -->
+<div id="pairing">
+  <div class="card">
+    <h1 class="game-title">Five Night's At 9A</h1>
+    <div class="dev">Yapımcı: <b>dextomoser</b></div>
+    <div id="qrbox"><div id="qrfallback">QR kod hazırlanıyor...</div></div>
+    <div id="waiting">Telefon bekleniyor...</div>
+    <div id="codeline">Oda kodu: <b id="gameCode">------</b></div>
+    <div id="urltext"></div>
+    <button id="skipbtn" type="button">Telefonsuz oyna (fare / dokunmatik)</button>
+  </div>
+</div>
+
+<div id="credit">Five Night's At 9A &mdash; Yapımcı: <b>dextomoser</b></div>
+<div id="phoneState">TELEFON: YOK</div>
+<div id="toast"></div>
+<div id="vcursor"></div>
+
+<!-- QR kod kütüphanesi (CDN) ve Socket.io istemcisi (sunucudan) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+
+<script>
+  // Oyunu başlat (RUNTIMESTART)
+  window.addEventListener("load", windowLoaded, false);
+  function windowLoaded() {
+    new Runtime("MMFCanvas", "resources/game.cch");
+  }
+</script>
+
+<script>
+/* =====================================================================
+ *  Five Night's At 9A - Telefon Kumandası Köprüsü (Socket + QR)
+ *  Developer: dextomoser
+ * ===================================================================== */
+(function () {
+  'use strict';
+
+  /* ------------------------- Ayarlar ------------------------- */
+  var GW = 1280, GH = 720;            // Oyunun mantıksal çözünürlüğü
+  var SCROLL_MS = 700;                // Ofiste sağa/sola kayma için bekleme
+  var TAP_MS = 90;                    // Tıklama basılı kalma süresi
+  var BAR_HOVER_MS = 240;             // Kamera çubuğunun üstünde bekleme
+  var STORE_KEY = 'fn9a_targets_v1';
+
+  /* Oyun koordinatları (1280x720). Ofis butonları, ofis ilgili tarafa
+     tamamen kaydırıldığında ekrandaki yerleridir. Gerekirse
+     tarayıcıda  /?debug=1  ile açıp "Kalibrasyon" panelinden düzeltin. */
+  var DEFAULT_TARGETS = {
+    sol_kapi:   { x: 55,   y: 342, label: 'Sol Kapı' },
+    sol_isik:   { x: 55,   y: 422, label: 'Sol Işık' },
+    sag_kapi:   { x: 1219, y: 351, label: 'Sağ Kapı' },
+    sag_isik:   { x: 1219, y: 431, label: 'Sağ Işık' },
+    kamera_bar: { x: 555,  y: 668, label: 'Kamera Çubuğu' },
+    cam_1:  { x: 984,  y: 354, label: 'CAM 1A' },
+    cam_2:  { x: 964,  y: 410, label: 'CAM 1B' },
+    cam_3:  { x: 932,  y: 487, label: 'CAM 1C' },
+    cam_4:  { x: 984,  y: 603, label: 'CAM 2A' },
+    cam_5:  { x: 984,  y: 643, label: 'CAM 2B' },
+    cam_6:  { x: 900,  y: 585, label: 'CAM 3'  },
+    cam_7:  { x: 1089, y: 603, label: 'CAM 4A' },
+    cam_8:  { x: 1089, y: 643, label: 'CAM 4B' },
+    cam_9:  { x: 860,  y: 436, label: 'CAM 5'  },
+    cam_10: { x: 1188, y: 568, label: 'CAM 6'  },
+    cam_11: { x: 1196, y: 437, label: 'CAM 7'  },
+    menu_yeni:  { x: 275, y: 422, label: 'Menü: Yeni Oyun' },
+    menu_devam: { x: 275, y: 492, label: 'Menü: Devam' }
+  };
+
+  var T = JSON.parse(JSON.stringify(DEFAULT_TARGETS));
+  try {
+    var saved = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+    Object.keys(saved).forEach(function (k) {
+      if (T[k] && isFinite(saved[k].x) && isFinite(saved[k].y)) { T[k].x = saved[k].x; T[k].y = saved[k].y; }
+    });
+  } catch (e) { /* yoksay */ }
+
+  function persistTargets() {
+    try {
+      var out = {};
+      Object.keys(T).forEach(function (k) { out[k] = { x: T[k].x, y: T[k].y }; });
+      localStorage.setItem(STORE_KEY, JSON.stringify(out));
+    } catch (e) { /* yoksay */ }
+  }
+
+  /* ------------------------- Yardımcılar ------------------------- */
+  var $ = function (id) { return document.getElementById(id); };
+  var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+
+  var toastTimer = null;
+  function toast(text, ms) {
+    var el = $('toast');
+    el.textContent = text;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.classList.remove('show'); }, ms || 1400);
+  }
+
+  /* ------------------------- Sentetik fare ------------------------- */
+  var canvas = null;
+  var hasPE = typeof window.PointerEvent === 'function';
+  var cursorTimer = null;
+
+  function getCanvas() { return canvas || (canvas = $('MMFCanvas')); }
+
+  function toClient(gx, gy) {
+    var r = getCanvas().getBoundingClientRect();
+    return { x: r.left + (gx / GW) * r.width, y: r.top + (gy / GH) * r.height };
+  }
+
+  function showCursor(gx, gy) {
+    var p = toClient(gx, gy), v = $('vcursor');
+    v.style.left = p.x + 'px'; v.style.top = p.y + 'px';
+    v.classList.add('show');
+    clearTimeout(cursorTimer);
+    cursorTimer = setTimeout(function () { v.classList.remove('show'); }, 2500);
+  }
+
+  /* kind: 'move' | 'down' | 'up' (oyun koordinatlarında) */
+  function dispatchMouse(kind, gx, gy) {
+    var c = getCanvas();
+    if (!c) return;
+    var p = toClient(gx, gy);
+    var base = { bubbles: true, cancelable: true, view: window,
+                 clientX: p.x, clientY: p.y, screenX: p.x, screenY: p.y };
+    if (hasPE) {
+      var o = Object.assign({}, base, {
+        pointerId: 99, pointerType: 'mouse', isPrimary: true,
+        button: kind === 'move' ? -1 : 0, buttons: kind === 'down' ? 1 : 0
+      });
+      c.dispatchEvent(new PointerEvent('pointer' + kind, o));
+    } else {
+      var o2 = Object.assign({}, base, { button: 0, buttons: kind === 'down' ? 1 : 0 });
+      c.dispatchEvent(new MouseEvent('mouse' + kind, o2));
+      if (kind === 'up') c.dispatchEvent(new MouseEvent('click', o2));
+    }
+    showCursor(gx, gy);
+  }
+
+  /* ------------------------- Durum ve kuyruk ------------------------- */
+  var state = { side: null };      // ofiste şu an hangi yana kaydırıldı: 'left' | 'right' | 'center' | null
+  var held = {};                   // basılı tutulan ışıklar
+  var vcur = { x: GW / 2, y: GH / 2 }; // sanal imleç (touchpad)
+  var chain = Promise.resolve();
+
+  function enqueue(fn) {
+    chain = chain.then(fn).catch(function (e) { console.warn('[9A köprü]', e); });
+    return chain;
+  }
+
+  async function releaseAll() {
+    for (var k in held) {
+      if (held[k]) { dispatchMouse('up', T[k].x, T[k].y); held[k] = false; await sleep(30); }
+    }
+  }
+
+  async function goSide(side, y) {
+    if (state.side !== side) {
+      dispatchMouse('move', side === 'left' ? 4 : GW - 4, y);
+      await sleep(SCROLL_MS);
+      state.side = side;
+    }
+  }
+
+  async function tapAt(t) {
+    dispatchMouse('move', t.x, t.y);
+    await sleep(40);
+    dispatchMouse('down', t.x, t.y);
+    await sleep(TAP_MS);
+    dispatchMouse('up', t.x, t.y);
+    await sleep(30);
+  }
+
+  async function doorCmd(key, side) {
+    await releaseAll();
+    await goSide(side, T[key].y);
+    await tapAt(T[key]);
+  }
+
+  async function lightSet(key, side, on) {
+    if (on) {
+      if (held[key]) return;
+      await releaseAll();
+      await goSide(side, T[key].y);
+      dispatchMouse('move', T[key].x, T[key].y);
+      await sleep(40);
+      dispatchMouse('down', T[key].x, T[key].y);
+      held[key] = true;
+    } else {
+      if (!held[key]) return;
+      dispatchMouse('up', T[key].x, T[key].y);
+      held[key] = false;
+    }
+  }
+
+  async function toggleCamera() {
+    await releaseAll();
+    var b = T.kamera_bar;
+    dispatchMouse('move', b.x, b.y - 80);
+    await sleep(70);
+    dispatchMouse('move', b.x, b.y);        // çubuğun üstüne gel (hover ile açılır/kapanır)
+    await sleep(BAR_HOVER_MS);
+    dispatchMouse('move', b.x, 300);        // çubuktan çık (yeniden tetiklenebilsin)
+    state.side = null;
+  }
+
+  async function lookAt(where) {
+    await releaseAll();
+    if (where === 'left')  { dispatchMouse('move', 4, 360);      await sleep(SCROLL_MS); state.side = 'left'; }
+    if (where === 'right') { dispatchMouse('move', GW - 4, 360); await sleep(SCROLL_MS); state.side = 'right'; }
+    if (where === 'center'){ dispatchMouse('move', GW / 2, 360); await sleep(SCROLL_MS); state.side = 'center'; }
+  }
+
+  var LABELS = {
+    sol_kapi: 'SOL KAPI', sag_kapi: 'SAĞ KAPI', sol_isik: 'SOL IŞIK', sag_isik: 'SAĞ IŞIK',
+    kamera_toggle: 'KAMERA', ofis_sol: 'SOLA BAK', ofis_sag: 'SAĞA BAK', ofis_merkez: 'ORTAYA BAK',
+    menu_yeni: 'YENİ OYUN', menu_devam: 'DEVAM'
+  };
+
+  /* ------------------------- Telefon komutları ------------------------- */
+  function handleCmd(msg) {
+    if (!msg || !msg.type) return;
+    var t = msg.type, a = msg.action;
+
+    if (t === 'imlec_hareket') {                       // touchpad
+      state.side = null;
+      vcur.x = Math.max(0, Math.min(GW, vcur.x + msg.dx));
+      vcur.y = Math.max(0, Math.min(GH, vcur.y + msg.dy));
+      dispatchMouse('move', vcur.x, vcur.y);
+      return;
+    }
+    if (t === 'imlec_tik') {
+      enqueue(async function () { await releaseAll(); await tapAt({ x: vcur.x, y: vcur.y }); });
+      return;
+    }
+
+    if (LABELS[t]) toast('\uD83D\uDCF1 ' + LABELS[t] + (a === 'up' ? ' (bırakıldı)' : ''));
+    else if (T[t]) toast('\uD83D\uDCF1 ' + T[t].label);
+
+    switch (t) {
+      case 'sol_kapi': enqueue(function () { return doorCmd('sol_kapi', 'left'); }); break;
+      case 'sag_kapi': enqueue(function () { return doorCmd('sag_kapi', 'right'); }); break;
+
+      case 'sol_isik':
+      case 'sag_isik': {
+        var side = t === 'sol_isik' ? 'left' : 'right';
+        if (a === 'down')      enqueue(function () { return lightSet(t, side, true); });
+        else if (a === 'up')   enqueue(function () { return lightSet(t, side, false); });
+        else                   enqueue(function () { return lightSet(t, side, !held[t]); }); // toggle / tap
+        break;
+      }
+
+      case 'kamera_toggle': enqueue(toggleCamera); break;
+      case 'ofis_sol':      enqueue(function () { return lookAt('left'); }); break;
+      case 'ofis_sag':      enqueue(function () { return lookAt('right'); }); break;
+      case 'ofis_merkez':   enqueue(function () { return lookAt('center'); }); break;
+
+      case 'menu_yeni':
+      case 'menu_devam':
+        enqueue(async function () { await releaseAll(); await tapAt(T[t]); state.side = null; });
+        break;
+
+      default:
+        if (/^cam_\d+$/.test(t) && T[t]) {             // kamera seçimi (harita butonları)
+          enqueue(async function () { await releaseAll(); await tapAt(T[t]); });
+        }
+    }
+  }
+
+  /* ------------------------- Socket + QR ------------------------- */
+  var socket = io({ transports: ['websocket', 'polling'] });
+  var currentUrl = '';
+  var phoneConnected = false;
+
+  function setPhoneState(on) {
+    phoneConnected = on;
+    var ps = $('phoneState');
+    ps.textContent = on ? 'TELEFON: BAĞLI' : 'TELEFON: YOK';
+    ps.classList.toggle('on', on);
+    $('pairing').classList.toggle('hidden', on);
+    var w = $('waiting');
+    w.textContent = on ? 'Telefon bağlandı!' : 'Telefon bekleniyor...';
+    w.classList.toggle('ok', on);
+  }
+
+  function drawQR(url) {
+    if (url === currentUrl) return;
+    currentUrl = url;
+    var box = $('qrbox');
+    box.innerHTML = '';
+    $('urltext').textContent = url;
+    if (typeof QRCode === 'function') {
+      try {
+        new QRCode(box, { text: url, width: 260, height: 260, colorDark: '#000000', colorLight: '#ffffff',
+                          correctLevel: QRCode.CorrectLevel.M });
+        return;
+      } catch (e) { console.warn('QR hatası', e); }
+    }
+    box.innerHTML = '<div id="qrfallback">QR kütüphanesi yüklenemedi.<br>Telefonda şu adresi açın:<br><br>' +
+                    url.replace(/[<>&]/g, '') + '</div>';
+  }
+
+  function hostCreate() {
+    var stored = {};
+    try { stored = JSON.parse(sessionStorage.getItem('fn9a_host') || '{}'); } catch (e) {}
+    socket.emit('host:create', { gameId: stored.gameId, hostKey: stored.hostKey }, function (res) {
+      if (!res || !res.ok) { $('waiting').textContent = 'Sunucu hatası, sayfayı yenileyin.'; return; }
+      try { sessionStorage.setItem('fn9a_host', JSON.stringify({ gameId: res.gameId, hostKey: res.hostKey })); } catch (e) {}
+      $('gameCode').textContent = res.gameId;
+      // Render URL'si otomatik algılanır (aynı origin üzerinden)
+      var url = location.origin + '/gamepad.html?game=' + encodeURIComponent(res.gameId) +
+                '&token=' + encodeURIComponent(res.token);
+      drawQR(url);
+      setPhoneState(!!res.controllerConnected);
+    });
+  }
+
+  socket.on('connect', hostCreate);
+  socket.on('disconnect', function () { setPhoneState(false); $('waiting').textContent = 'Sunucuya yeniden bağlanılıyor...'; });
+
+  socket.on('controller:connected', function () {
+    setPhoneState(true);
+    toast('Telefon bağlandı! Ses için tahtaya bir kez dokunun.', 6000);
+    var once = function (e) { if (e.isTrusted) { $('toast').classList.remove('show'); window.removeEventListener('pointerdown', once, true); } };
+    window.addEventListener('pointerdown', once, true);
+  });
+  socket.on('controller:disconnected', function () {
+    releaseAll();
+    setPhoneState(false);
+  });
+  socket.on('cmd', handleCmd);
+
+  $('skipbtn').addEventListener('click', function () { $('pairing').classList.add('hidden'); });
+
+  /* ------------------------- Kalibrasyon (?debug=1) ------------------------- */
+  if (/[?&](debug|kalibrasyon)=1/.test(location.search)) {
+    var panel = document.createElement('div');
+    panel.id = 'calPanel';
+    panel.innerHTML =
+      '<b>KALİBRASYON</b> (oyun px, 1280x720)<br>' +
+      '<select id="calSel"></select>' +
+      '<div id="calOut" style="margin:4px 0;color:#ff0"></div>' +
+      '<button id="calPick1">1) Konumu seç (sonra butona dokun)</button>' +
+      '<button id="calTest">2) Test et</button>' +
+      '<button id="calCopy">JSON kopyala</button>' +
+      '<button id="calReset">Varsayılana dön</button>' +
+      '<div id="calPos" style="color:#999;margin-top:4px">fare: -</div>';
+    document.body.appendChild(panel);
+    var markers = document.createElement('div'); markers.id = 'calMarkers'; document.body.appendChild(markers);
+    var sel = $('calSel');
+    Object.keys(T).forEach(function (k) {
+      var o = document.createElement('option'); o.value = k; o.textContent = T[k].label + ' (' + k + ')'; sel.appendChild(o);
+    });
+
+    var refresh = function () {
+      markers.innerHTML = '';
+      Object.keys(T).forEach(function (k) {
+        var p = toClient(T[k].x, T[k].y);
+        var d = document.createElement('div'); d.className = 'calDot'; d.style.left = p.x + 'px'; d.style.top = p.y + 'px';
+        var l = document.createElement('div'); l.className = 'calLbl'; l.style.left = p.x + 'px'; l.style.top = p.y + 'px'; l.textContent = k;
+        markers.appendChild(d); markers.appendChild(l);
+      });
+      var k2 = sel.value; $('calOut').textContent = k2 + ': x=' + T[k2].x + ', y=' + T[k2].y;
+    };
+    sel.addEventListener('change', refresh);
+    window.addEventListener('resize', refresh);
+    setTimeout(refresh, 500);
+
+    $('calPick1').addEventListener('click', function () {
+      var r = getCanvas().getBoundingClientRect();
+      var pick = document.createElement('div'); pick.id = 'calPick';
+      pick.style.left = r.left + 'px'; pick.style.top = r.top + 'px'; pick.style.width = r.width + 'px'; pick.style.height = r.height + 'px';
+      pick.addEventListener('click', function (e) {
+        var gx = Math.round((e.clientX - r.left) / r.width * GW), gy = Math.round((e.clientY - r.top) / r.height * GH);
+        T[sel.value].x = gx; T[sel.value].y = gy; persistTargets(); pick.remove(); refresh(); toast('Kaydedildi: ' + gx + ', ' + gy);
+      });
+      document.body.appendChild(pick);
+    });
+    $('calTest').addEventListener('click', function () {
+      var k = sel.value;
+      if (k === 'kamera_bar') handleCmd({ type: 'kamera_toggle', action: 'toggle' });
+      else if (k === 'sol_isik' || k === 'sag_isik') handleCmd({ type: k, action: 'toggle' });
+      else if (k === 'sol_kapi' || k === 'sag_kapi' || /^cam_|^menu_/.test(k)) handleCmd({ type: k, action: 'tap' });
+    });
+    $('calCopy').addEventListener('click', function () {
+      var out = {}; Object.keys(T).forEach(function (k) { out[k] = { x: T[k].x, y: T[k].y }; });
+      var s = JSON.stringify(out, null, 1);
+      if (navigator.clipboard) navigator.clipboard.writeText(s).then(function () { toast('Kopyalandı'); });
+      else window.prompt('Kopyalayın:', s);
+    });
+    $('calReset').addEventListener('click', function () {
+      try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+      Object.keys(DEFAULT_TARGETS).forEach(function (k) { T[k].x = DEFAULT_TARGETS[k].x; T[k].y = DEFAULT_TARGETS[k].y; });
+      refresh(); toast('Varsayılanlara dönüldü');
+    });
+    getCanvas().addEventListener('mousemove', function (e) {
+      var r = getCanvas().getBoundingClientRect();
+      $('calPos').textContent = 'fare: ' + Math.round((e.clientX - r.left) / r.width * GW) + ', ' + Math.round((e.clientY - r.top) / r.height * GH);
+    });
+  }
+})();
+</script>
+</body>
+</html>

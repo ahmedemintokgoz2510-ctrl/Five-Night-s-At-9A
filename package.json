@@ -1,0 +1,19 @@
+{
+  "name": "five-nights-at-9a",
+  "version": "1.0.0",
+  "description": "Five Night's At 9A - Developer: dextomoser. Akıllı tahta + telefon gamepad (Socket.io).",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "author": "dextomoser",
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  }
+}
