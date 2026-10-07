@@ -59,6 +59,43 @@
   #overlay p { margin: 0 0 14px; color: #bbb; line-height: 1.5; }
   footer { margin-top: 16px; text-align: center; font-size: 11px; letter-spacing: .15em; color: #4d4d4d; }
 
+
+  #rotateHint { display: none; text-align: center; font-size: 11px; letter-spacing: .12em; color: #a55; padding: 0 0 6px; }
+  @media (orientation: portrait) { #rotateHint { display: block; } }
+
+  /* ---------- YATAY (gamepad) DÜZEN ---------- */
+  @media (orientation: landscape) and (max-height: 560px) {
+    body { padding: max(6px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); }
+    .wrap { max-width: none; height: calc(100vh - 12px); display: grid; gap: 6px;
+      grid-template-columns: 1fr 1.9fr 1fr;
+      grid-template-rows: auto auto 1fr 1fr auto;
+      grid-template-areas: "dl hd dr" "dl look dr" "ll cam lr" "ll cam lr" "mode menu menu"; }
+    header { grid-area: hd; padding: 0; display: flex; flex-direction: column; justify-content: center; }
+    h1 { font-size: 22px; }
+    .dev { margin-top: 2px; font-size: 10px; letter-spacing: .15em; }
+    #conn { margin-top: 4px; padding: 2px 8px; font-size: 10px; }
+    section { margin: 0; padding: 6px; }
+    h2 { display: none; }
+    #secLook { grid-area: look; }
+    #secLook .btn { min-height: 40px; }
+    #secCam { grid-area: cam; display: flex; flex-direction: column; gap: 6px; }
+    #secCam .row { margin: 0 !important; }
+    #secCam .r4 { grid-template-columns: repeat(6, 1fr); flex: 1; }
+    button.big { min-height: 46px; font-size: 15px; }
+    button.cam { min-height: 38px; font-size: 12px; }
+    button.btn { min-height: 38px; }
+    #secMenu { grid-area: menu; padding: 4px 6px; }
+    details > summary { font-size: 10px; }
+    #pad { height: 70px; }
+    #secDoors { display: contents; }
+    #secDoors > .row:first-of-type { display: contents; }
+    #doorL { grid-area: dl; } #doorR { grid-area: dr; } #lightL { grid-area: ll; } #lightR { grid-area: lr; }
+    button.tall { min-height: 0; height: 100%; font-size: 17px; }
+    #modeRow { grid-area: mode; margin: 0 !important; }
+    #lightMode { min-height: 30px; width: 100%; font-size: 9px; padding: 2px; }
+    footer { display: none; }
+  }
+
   @keyframes flick { 0%,90%,100% { opacity: 1; } 91% { opacity: .5; } 92% { opacity: 1; } 95% { opacity: .35; } 96% { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) { h1 { animation: none; } }
 </style>
@@ -66,13 +103,14 @@
 <body>
 <div class="wrap">
 
-  <header>
+  <div id="rotateHint">↻ Daha rahat kullanım için telefonu yatırın</div>
+  <header id="hd">
     <h1>Five Night's At 9A</h1>
     <div class="dev">Developer: <b>dextomoser</b></div>
     <div id="conn">BAĞLANIYOR...</div>
   </header>
 
-  <section>
+  <section id="secLook">
     <h2>Ofiste Bak</h2>
     <div class="row r3">
       <button class="btn" data-cmd="ofis_sol" data-act="tap">◀ Sol</button>
@@ -81,7 +119,7 @@
     </div>
   </section>
 
-  <section>
+  <section id="secDoors">
     <h2>Kapılar &amp; Işıklar</h2>
     <div class="row r2">
       <button class="btn tall" id="doorL" data-cmd="sol_kapi" data-act="toggle">Sol Kapı<small id="doorLs">AÇ / KAPAT</small></button>
@@ -89,12 +127,12 @@
       <button class="btn tall" id="lightL" data-light="sol_isik">Sol Işık<small>BASILI TUT</small></button>
       <button class="btn tall" id="lightR" data-light="sag_isik">Sağ Işık<small>BASILI TUT</small></button>
     </div>
-    <div class="row" style="margin-top:8px">
+    <div class="row" id="modeRow" style="margin-top:8px">
       <button class="btn chip" id="lightMode" type="button">Işık modu: BASILI TUT (değiştirmek için dokun)</button>
     </div>
   </section>
 
-  <section>
+  <section id="secCam">
     <h2>Kamera</h2>
     <div class="row">
       <button class="btn big" data-cmd="kamera_toggle" data-act="toggle">Kamera Panelini Aç / Kapat</button>
@@ -114,7 +152,7 @@
     </div>
   </section>
 
-  <section>
+  <section id="secMenu">
     <details>
       <summary>▸ Menü &amp; Touchpad</summary>
       <div class="row r2">
